@@ -1,0 +1,4 @@
+fastapi~=0.111
+uvicorn[standard]~=0.30
+clipspy~=1.0   # binding do CLIPS 6.40
+pydantic~=2.8
