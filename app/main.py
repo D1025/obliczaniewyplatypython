@@ -1,52 +1,50 @@
+"""
+app/main.py
+-----------
+
+Główny punkt wejścia aplikacji FastAPI. Przyjmuje żądania kalkulacji
+wynagrodzenia, przekazuje je do silnika CLIPS i zwraca wynik.
+"""
+
 from fastapi import FastAPI, HTTPException
-from datetime import datetime, timezone
-from clips import Environment
+
 from app.schemas import PayrollPayload, PayrollResult
+from app.engine import run_payroll  # logika uruchomienia CLIPS
 
-app = FastAPI(title="Payroll-CLIPS PoC")
+# ──────────────────────────────────────────────────────────────────
+#  Inicjalizacja FastAPI
+# ──────────────────────────────────────────────────────────────────
+app = FastAPI(
+    title="Payroll-CLIPS PoC",
+    version="0.1.0",
+    description="Prosty serwer HTTP demonstrujący kalkulator "
+                "wynagrodzeń z użyciem silnika reguł CLIPS."
+)
 
-# 1️⃣  Tworzymy singleton środowiska CLIPS
-clips_env = Environment()
-clips_env.load("./app/rules/payroll.clp")
-
-def run_engine(payload: PayrollPayload) -> PayrollResult:
-    env = clips_env
-    env.reset()
-
-    # 2️⃣  Mapowanie JSON ⇒ Fakty
-    emp = payload.employee
-    pos = payload.position
-    env.assert_string(f"""
-        (employee (first-name "{emp.firstName}") (last-name "{emp.lastName}") (contract-type "{emp.contractType.value}") (base-rate {pos.baseRate}))
-    """)
-
-    ot = payload.overtime
-    env.assert_string(f"""
-        (overtime (fifty {ot.overtime50h}) (hundred {ot.overtime100h}))
-    """)
-
-    # 3️⃣  Odpalamy reguły
-    env.run()
-
-    # 4️⃣  Zbieramy fakty result
-    gross = ot_pay = 0.0
-    for fact in env.facts():
-        if fact.template.name == "result":
-            gross = float(fact["gross"])
-            ot_pay = float(fact["overtime-pay"])
-            break
-
-    return PayrollResult(
-        gross=gross,
-        overtimePay=ot_pay,
-        bonuses=payload.allowances.performanceBonus,
-        details={"overtimePay": ot_pay},
-        calculatedAt=datetime.now(timezone.utc)
-    )
-
-@app.post("/calculate", response_model=PayrollResult)
-def calculate_payroll(req: PayrollPayload):
+# ──────────────────────────────────────────────────────────────────
+#  Endpoint HTTP
+# ──────────────────────────────────────────────────────────────────
+@app.post("/calculate", response_model=PayrollResult, tags=["Payroll"])
+def calculate(req: PayrollPayload):
+    """
+    Przyjmuje payload z danymi płacowymi i zwraca wynik obliczeń
+    (brutto, dodatki, potrącenia, netto).
+    """
     try:
-        return run_engine(req)
-    except Exception as ex:
-        raise HTTPException(status_code=500, detail=str(ex))
+        return run_payroll(req)
+    except Exception as ex:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(ex)) from ex
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Ułatwienie do lokalnego uruchamiania `python -m app.main`
+# ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )
