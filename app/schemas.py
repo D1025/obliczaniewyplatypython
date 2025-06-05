@@ -46,14 +46,7 @@ class Employee(BaseModel):
 # ------------------------------------------------------------------
 
 class Position(BaseModel):
-    positionId: str
-    positionName: str
-    grade: Optional[str] = None
-    payBand: Optional[str] = None
-    minRate: Optional[Decimal] = None
-    maxRate: Optional[Decimal] = None
     currency: CurrencyCode = CurrencyCode.PLN
-    baseRate: Decimal = Field(..., description="Kwota bazowa brutto (mies. lub godz.)")
 
 
 # ------------------------------------------------------------------
