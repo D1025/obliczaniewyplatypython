@@ -1,15 +1,8 @@
-"""
-app/main.py
------------
-
-Główny punkt wejścia aplikacji FastAPI. Przyjmuje żądania kalkulacji
-wynagrodzenia, przekazuje je do silnika CLIPS i zwraca wynik.
-"""
-
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.schemas import PayrollPayload, PayrollResult
-from app.engine import run_payroll  # logika uruchomienia CLIPS
+from app.engine import run_payroll
 
 # ──────────────────────────────────────────────────────────────────
 #  Inicjalizacja FastAPI
@@ -19,6 +12,19 @@ app = FastAPI(
     version="0.1.0",
     description="Prosty serwer HTTP demonstrujący kalkulator "
                 "wynagrodzeń z użyciem silnika reguł CLIPS."
+)
+
+# ──────────────────────────────────────────────────────────────────
+#  Konfiguracja CORS
+# ──────────────────────────────────────────────────────────────────
+origins = ["*"]  # TODO: ogranicz w produkcji
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ──────────────────────────────────────────────────────────────────

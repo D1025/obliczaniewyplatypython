@@ -1,10 +1,3 @@
-"""
-app/engine.py
--------------
-
-Warstwa silnika: FastAPI → CLIPS → wynik.
-"""
-
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict

@@ -1,12 +1,3 @@
-"""
-app/schemas.py
----------------
-
-Zawiera kompletne modele Pydantic dla kalkulatora wynagrodzeń.
-Każda sekcja specyfikacji (1-10) ma własny pod-model, a całość
-zgrupowana jest w PayrollPayload, wysyłaną z front-endu na backend.
-"""
-
 from __future__ import annotations
 
 from decimal import Decimal
@@ -38,7 +29,6 @@ class CurrencyCode(str, Enum):
     PLN = "PLN"
     EUR = "EUR"
     USD = "USD"
-    # dodaj następne w miarę potrzeb
 
 
 # ------------------------------------------------------------------
