@@ -1,3 +1,7 @@
+;; ───────────────────────────────────────────────────────────
+;;  PAYROLL RULES  (pełna, poprawiona wersja)
+;; ───────────────────────────────────────────────────────────
+
 (defglobal
    ?*HOURS_FULL_TIME*      = 160
    ?*SOC_INS_EMP_PCT*      = 0.1371
@@ -7,9 +11,12 @@
    ?*TAX_ADV_PCT_HI*       = 0.32
    ?*TAX_HI_THRESHOLD*     = 120000)
 
+;; ───── TEMPLATE DEFINITIONS ────────────────────────────────
+
 (deftemplate employee
    (slot first-name) (slot last-name)
-   (slot contract-type) (slot is-student (default FALSE)))
+   (slot contract-type)
+   (slot is-student (default FALSE)))
 
 (deftemplate position
    (slot base-rate) (slot currency) (slot fte (default 1.0)))
@@ -37,7 +44,8 @@
    (slot zus) (slot health) (slot ppk) (slot bail))
 
 (deftemplate timesheet
-   (slot hours-worked) (slot norm-hours (default ?*HOURS_FULL_TIME*)))
+   (slot hours-worked)
+   (slot norm-hours (default ?*HOURS_FULL_TIME*)))
 
 (deftemplate components
    (slot base-salary)
@@ -55,7 +63,15 @@
    (slot other   (default 0))
    (slot tax-adv (default 0)))
 
+;; ▸ NOWY FAKT – pojedyncze kwoty składek
+(deftemplate contributions
+   (slot social)
+   (slot health)
+   (slot ppk))
+
 (deftemplate summary (slot net) (slot calc-date))
+
+;; ───── RULES ───────────────────────────────────────────────
 
 (defrule calc-base
   (position (base-rate ?rate) (fte ?fte))
@@ -112,6 +128,8 @@
 =>
   (modify ?c (gross (+ ?b ?op ?tp ?ap))))
 
+;; ----------------  Z A L I C Z K I   P I T  ----------------
+
 (defrule tax-adv-student
   (employee (is-student TRUE))
   (components)
@@ -120,7 +138,8 @@
   (assert (tax-advance (amount 0))))
 
 (defrule tax-adv-emp-work
-  (employee (contract-type ?ct&:(or (eq ?ct UMOWA_O_PRACE) (eq ?ct DZIELO))) (is-student FALSE))
+  (employee (contract-type ?ct&:(or (eq ?ct UMOWA_O_PRACE) (eq ?ct DZIELO)))
+            (is-student FALSE))
   (components (gross ?g))
   (not (tax-advance))
 =>
@@ -144,22 +163,37 @@
 =>
   (assert (tax-advance (amount 0))))
 
+;; ----------------  S K Ł A D K I  --------------------------
+
 (defrule calc-deductions
   (components (gross ?gross))
-  (deductions-pct (zus ?zusP) (health ?heaP)
-                  (ppk ?ppkP) (bail ?bail))
+  (deductions-pct (zus ?zusP) (health ?heaP) (ppk ?ppkP) (bail ?bail))
   (tax-advance (amount ?taxAdv))
-  (employee (contract-type ?ct))
+  (employee (contract-type ?ct) (is-student ?stud))
 =>
-  (bind ?zus (if (eq ?ct ZLECENIE) then 0 else (* ?gross ?zusP)))
-  (bind ?health (if (eq ?ct ZLECENIE) then 0 else (* ?gross ?heaP)))
-  (bind ?ppk (* ?gross ?ppkP))
+  ;; warunek zwalniający ze ZUS/zdrowotnej:
+  ;;   • DZIELO
+  ;;   • B2B
+  ;;   • ZLECENIE + student
+  (bind ?exempt (or (eq ?ct DZIELO)
+                    (eq ?ct B2B)
+                    (and (eq ?ct ZLECENIE) (eq ?stud TRUE))))
+
+  (bind ?zus    (if ?exempt then 0 else (* ?gross ?zusP)))
+  (bind ?health (if ?exempt then 0 else (* ?gross ?heaP)))
+  (bind ?ppk    (* ?gross ?ppkP))
+
   (assert (deductions
             (social  ?zus)
             (health  ?health)
             (ppk     ?ppk)
             (other   ?bail)
-            (tax-adv ?taxAdv))))
+            (tax-adv ?taxAdv)))
+
+  (assert (contributions
+            (social  ?zus)
+            (health  ?health)
+            (ppk     ?ppk))))
 
 (defrule calc-net
   (components (gross ?gross))
