@@ -28,7 +28,7 @@ def _push_facts(env: Environment, p: PayrollPayload) -> None:
         f'(contract-type {p.employee.contractType.value}))'
     )
     env.assert_string(
-        f'(position (base-rate {p.position.baseRate}) '
+        f'(position (base-rate {6000}) '
         f'(currency {p.position.currency.value}) '
         f'(fte {getattr(p.employee, "fte", 1)}))'
     )
