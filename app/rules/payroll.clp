@@ -1,7 +1,3 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;  payroll.clp  (wersja zweryfikowana – brak nadmiarowych ")")
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (defglobal
    ?*HOURS_FULL_TIME*      = 160
    ?*SOC_INS_EMP_PCT*      = 0.1371
@@ -11,12 +7,9 @@
    ?*TAX_ADV_PCT_HI*       = 0.32
    ?*TAX_HI_THRESHOLD*     = 120000)
 
-;--------------------------------------------------------------------
-;  INPUT TEMPLATES
-;--------------------------------------------------------------------
-
 (deftemplate employee
-   (slot first-name) (slot last-name) (slot contract-type))
+   (slot first-name) (slot last-name)
+   (slot contract-type) (slot is-student (default FALSE)))
 
 (deftemplate position
    (slot base-rate) (slot currency) (slot fte (default 1.0)))
@@ -32,25 +25,19 @@
    (slot dom-days) (slot abrd-days)
    (slot dom-rate) (slot abrd-rate)
    (slot accomodation) (slot lump-sum)
-   (slot private-km)   (slot km-rate))
+   (slot private-km) (slot km-rate))
 
 (deftemplate allowances
-   (slot seniority-pct)  (slot function-allow)
-   (slot perf-bonus)     (slot regulation-bonus)
-   (slot night-allow)    (slot weekend-allow)
-   (slot remote-allow)   (slot medical) (slot car))
+   (slot seniority-pct) (slot function-allow)
+   (slot perf-bonus) (slot regulation-bonus)
+   (slot night-allow) (slot weekend-allow)
+   (slot remote-allow) (slot medical) (slot car))
 
 (deftemplate deductions-pct
-   (slot zus) (slot health) (slot tax-adv)
-   (slot ppk) (slot bail))
+   (slot zus) (slot health) (slot ppk) (slot bail))
 
 (deftemplate timesheet
-   (slot hours-worked)
-   (slot norm-hours (default ?*HOURS_FULL_TIME*)))
-
-;--------------------------------------------------------------------
-;  OUTPUT TEMPLATES
-;--------------------------------------------------------------------
+   (slot hours-worked) (slot norm-hours (default ?*HOURS_FULL_TIME*)))
 
 (deftemplate components
    (slot base-salary)
@@ -59,6 +46,8 @@
    (slot allow-pay   (default 0))
    (slot gross       (default 0)))
 
+(deftemplate tax-advance (slot amount))
+
 (deftemplate deductions
    (slot social  (default 0))
    (slot health  (default 0))
@@ -66,14 +55,8 @@
    (slot other   (default 0))
    (slot tax-adv (default 0)))
 
-(deftemplate summary
-   (slot net) (slot calc-date))
+(deftemplate summary (slot net) (slot calc-date))
 
-;--------------------------------------------------------------------
-;  RULES
-;--------------------------------------------------------------------
-
-; 1️⃣  Base salary
 (defrule calc-base
   (position (base-rate ?rate) (fte ?fte))
   (timesheet (hours-worked ?hw) (norm-hours ?norm))
@@ -83,7 +66,6 @@
       (bind ?base (* (/ ?hw ?norm) ?rate ?fte)))
   (assert (components (base-salary ?base))))
 
-; 2️⃣  Overtime
 (defrule calc-overtime
   ?c <- (components (base-salary ?base))
   (overtime (fifty ?f) (hundred ?h) (mult50 ?m50) (mult100 ?m100))
@@ -94,7 +76,6 @@
                 (* ?h ?rate-hour (- ?m100 1))))
   (modify ?c (overtime-pay ?pay)))
 
-; 3️⃣  Travel allowances
 (defrule calc-travel
   ?c <- (components)
   (travel (dom-days ?dd) (abrd-days ?ad)
@@ -107,7 +88,6 @@
   (bind ?total (+ ?diet ?acc ?ls ?kmPay))
   (modify ?c (travel-pay ?total)))
 
-; 4️⃣  Other allowances & bonuses
 (defrule calc-allowances
   ?c <- (components (base-salary ?base))
   (allowances (seniority-pct ?sen)
@@ -124,7 +104,6 @@
   (bind ?sum (+ ?senior ?func ?perf ?reg ?na ?wa ?ra ?med ?car))
   (modify ?c (allow-pay ?sum)))
 
-; 5️⃣  Gross
 (defrule calc-gross
   ?c <- (components (base-salary ?b)
                     (overtime-pay ?op)
@@ -133,17 +112,43 @@
 =>
   (modify ?c (gross (+ ?b ?op ?tp ?ap))))
 
-; 6️⃣  Percentage deductions
+(defrule tax-adv-emp-work
+  (employee (contract-type ?ct&:(or (eq ?ct UMOWA_O_PRACE) (eq ?ct DZIELO))))
+  (components (gross ?g))
+=>
+  (bind ?low (* (min ?g ?*TAX_HI_THRESHOLD*) ?*TAX_ADV_PCT_LO*))
+  (bind ?high (if (> ?g ?*TAX_HI_THRESHOLD*)
+                 then (* (- ?g ?*TAX_HI_THRESHOLD*) ?*TAX_ADV_PCT_HI*)
+                 else 0))
+  (assert (tax-advance (amount (+ ?low ?high)))))
+
+(defrule tax-adv-commission-student
+  (employee (contract-type ZLECENIE) (is-student TRUE))
+  (components)
+=>
+  (assert (tax-advance (amount 0))))
+
+(defrule tax-adv-commission
+  (employee (contract-type ZLECENIE) (is-student FALSE))
+  (components (gross ?g))
+=>
+  (assert (tax-advance (amount (* ?g ?*TAX_ADV_PCT_LO*)))))
+
+(defrule tax-adv-b2b
+  (employee (contract-type B2B))
+  (components)
+=>
+  (assert (tax-advance (amount 0))))
+
 (defrule calc-deductions
   (components (gross ?gross))
   (deductions-pct (zus ?zusP) (health ?heaP)
-                  (ppk ?ppkP) (tax-adv ?taxP)
-                  (bail ?bail))
+                  (ppk ?ppkP) (bail ?bail))
+  (tax-advance (amount ?taxAdv))
 =>
   (bind ?zus     (* ?gross ?zusP))
   (bind ?health  (* ?gross ?heaP))
   (bind ?ppk     (* ?gross ?ppkP))
-  (bind ?taxAdv  (* ?gross ?taxP))  ; uproszczenie
   (assert (deductions
             (social  ?zus)
             (health  ?health)
@@ -151,11 +156,9 @@
             (other   ?bail)
             (tax-adv ?taxAdv))))
 
-; 7️⃣  Net
 (defrule calc-net
   (components (gross ?gross))
   (deductions (social ?s) (health ?h) (ppk ?p) (other ?o) (tax-adv ?t))
 =>
   (bind ?net (- ?gross ?s ?h ?p ?o ?t))
-  (assert (summary (net ?net) (calc-date (gensym*))))
-)
+  (assert (summary (net ?net) (calc-date (gensym*)))))

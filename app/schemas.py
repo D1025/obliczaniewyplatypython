@@ -1,16 +1,9 @@
 from __future__ import annotations
-
 from decimal import Decimal
 from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional, Dict
-
 from pydantic import BaseModel, Field, condecimal, conint
-
-
-# ------------------------------------------------------------------
-#  ENUMS
-# ------------------------------------------------------------------
 
 class ContractType(str, Enum):
     EMPLOYMENT = "UMOWA_O_PRACE"
@@ -18,40 +11,24 @@ class ContractType(str, Enum):
     COMMISSION = "ZLECENIE"
     WORK = "DZIELO"
 
-
 class SettlementFrequency(str, Enum):
     MONTHLY = "MIESIĘCZNA"
     WEEKLY = "TYGODNIOWA"
     BIWEEKLY = "DWUTYGODNIOWA"
-
 
 class CurrencyCode(str, Enum):
     PLN = "PLN"
     EUR = "EUR"
     USD = "USD"
 
-
-# ------------------------------------------------------------------
-#  SECTION 1: EMPLOYEE
-# ------------------------------------------------------------------
-
 class Employee(BaseModel):
     firstName: str
     lastName: str
     contractType: ContractType
-
-
-# ------------------------------------------------------------------
-#  SECTION 2: POSITION / PAY BAND
-# ------------------------------------------------------------------
+    isStudent: bool = False
 
 class Position(BaseModel):
     currency: CurrencyCode = CurrencyCode.PLN
-
-
-# ------------------------------------------------------------------
-#  SECTION 3: SETTLEMENT PERIOD
-# ------------------------------------------------------------------
 
 class Period(BaseModel):
     payPeriodStart: date
@@ -60,11 +37,6 @@ class Period(BaseModel):
     workingDaysInPeriod: Optional[int] = None
     normHoursInPeriod: Optional[Decimal] = None
 
-
-# ------------------------------------------------------------------
-#  SECTION 4: OVERTIME
-# ------------------------------------------------------------------
-
 class Overtime(BaseModel):
     overtime50h: Decimal = 0
     overtime100h: Decimal = 0
@@ -72,11 +44,6 @@ class Overtime(BaseModel):
     overtime50Multiplier: condecimal(gt=1) = 1.5
     overtime100Multiplier: condecimal(gt=1) = 2.0
     overtimeLimitMonthly: Optional[Decimal] = None
-
-
-# ------------------------------------------------------------------
-#  SECTION 5: TRAVEL / DELEGATIONS
-# ------------------------------------------------------------------
 
 class Travel(BaseModel):
     travelDaysDomestic: Decimal = 0
@@ -87,11 +54,6 @@ class Travel(BaseModel):
     lumpSumTransport: Decimal = 0
     privateCarKm: Decimal = 0
     privateCarRatePerKm: Decimal = 0
-
-
-# ------------------------------------------------------------------
-#  SECTION 6: ALLOWANCES & BONUSES
-# ------------------------------------------------------------------
 
 class Allowances(BaseModel):
     seniorityBonusPct: Decimal = 0
@@ -104,15 +66,9 @@ class Allowances(BaseModel):
     medicalBenefitValue: Decimal = 0
     companyCarBenefitValue: Decimal = 0
 
-
-# ------------------------------------------------------------------
-#  SECTION 7: DEDUCTIONS & CONTRIBUTIONS
-# ------------------------------------------------------------------
-
 class OtherDeduction(BaseModel):
     code: str
     amount: Decimal
-
 
 class Deductions(BaseModel):
     employeeSocialInsurancePct: condecimal(ge=0) = 0
@@ -122,26 +78,15 @@ class Deductions(BaseModel):
     otherDeductions: List[OtherDeduction] = Field(default_factory=list)
     bailDeduction: Decimal = 0
 
-
-# ------------------------------------------------------------------
-#  SECTION 8: TAX PARAMETERS
-# ------------------------------------------------------------------
-
 class TaxThreshold(BaseModel):
-    threshold: Decimal = Field(..., description="Kwota progu")
-    rate: condecimal(ge=0, le=1) = Field(..., description="Stawka w udziale 0-1")
-
+    threshold: Decimal
+    rate: condecimal(ge=0, le=1)
 
 class TaxParameters(BaseModel):
-    taxYear: conint(ge=2000)  # do rozszerzenia według potrzeb
+    taxYear: conint(ge=2000)
     taxFreeAllowanceMonthly: Decimal
     costsOfIncomeMonthly: Decimal
     taxThresholds: List[TaxThreshold]
-
-
-# ------------------------------------------------------------------
-#  SECTION 9: TIMESHEET / CALENDAR (AGGREGATES)
-# ------------------------------------------------------------------
 
 class Timesheet(BaseModel):
     hoursWorked: Decimal
@@ -150,22 +95,12 @@ class Timesheet(BaseModel):
     hoursSickLeave: Decimal = 0
     publicHolidaysInPeriod: int = 0
 
-
-# ------------------------------------------------------------------
-#  SECTION 10: META
-# ------------------------------------------------------------------
-
 class Meta(BaseModel):
     calculationId: str
     createdAt: datetime
     createdBy: str
     sourceSystem: Optional[str] = "WEB_UI"
     schemaVersion: str = "2025-06-01"
-
-
-# ------------------------------------------------------------------
-#  ROOT MODEL – PAYLOAD
-# ------------------------------------------------------------------
 
 class PayrollPayload(BaseModel):
     employee: Employee
@@ -180,10 +115,8 @@ class PayrollPayload(BaseModel):
     meta: Meta
 
     class Config:
-        """Pydantic ustawienia globalne."""
         orm_mode = True
-        json_encoders = {Decimal: lambda v: str(v)}  # unikamy utraty precyzji
-
+        json_encoders = {Decimal: lambda v: str(v)}
 
 class PayrollResult(BaseModel):
     gross: Decimal
