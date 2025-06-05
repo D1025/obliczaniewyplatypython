@@ -80,8 +80,6 @@ def _collect_results(env: Environment) -> Dict[str, Any]:
             ded = {slot: _dec(fact[slot]) for slot in _template_slot_names(fact)}
         elif name == "summary":
             summ = {"net": _dec(fact["net"])}
-    if comp is None or summ is None:
-        raise RuntimeError("Missing components or summary facts.")
     return {"components": comp, "deductions": ded, "summary": summ}
 
 def run_payroll(payload: PayrollPayload) -> PayrollResult:

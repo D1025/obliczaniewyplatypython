@@ -113,7 +113,6 @@ class PayrollPayload(BaseModel):
     tax: TaxParameters
     timesheet: Timesheet
     meta: Meta
-
     class Config:
         orm_mode = True
         json_encoders = {Decimal: lambda v: str(v)}

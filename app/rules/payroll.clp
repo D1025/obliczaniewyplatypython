@@ -166,4 +166,4 @@
   (deductions (social ?s) (health ?h) (ppk ?p) (other ?o) (tax-adv ?t))
 =>
   (bind ?net (- ?gross ?s ?h ?p ?o ?t))
-  (assert (summary (net ?net) (calc-date (gensym*))))
+  (assert (summary (net ?net) (calc-date (gensym*)))))
