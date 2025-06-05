@@ -12,12 +12,10 @@ _clips_env.load("./app/rules/payroll.clp")
 # ───────────────────────────────────────────────────────────
 
 def _dec(val) -> Decimal:
-    """Konwertuje wartości CLIPS-owe na Decimal (2 miejsca)."""
     return Decimal(str(val)).quantize(Decimal("0.01"))
 
 
 def _slot_names(fact) -> list[str]:
-    """Lista slotów danego facta."""
     return [s.name for s in fact.template.slots]
 
 
@@ -34,17 +32,20 @@ def _push_facts(env: Environment, p: PayrollPayload) -> None:
     )
 
     env.assert_string(
-        f'(position (base-rate 6000) (currency {p.position.currency.value}) (fte 1))'
+        f'(position (base-rate 6000) '
+        f'(currency {p.position.currency.value}) (fte 1))'
     )
 
     env.assert_string(
-        f'(period (start "{p.period.payPeriodStart}") (end "{p.period.payPeriodEnd}"))'
+        f'(period (start "{p.period.payPeriodStart}") '
+        f'(end "{p.period.payPeriodEnd}"))'
     )
 
     ot = p.overtime
     env.assert_string(
         f'(overtime (fifty {ot.overtime50h}) (hundred {ot.overtime100h}) '
-        f'(night {ot.overtimeNightH}) (mult50 {ot.overtime50Multiplier}) '
+        f'(night {ot.overtimeNightH}) '
+        f'(mult50 {ot.overtime50Multiplier}) '
         f'(mult100 {ot.overtime100Multiplier}))'
     )
 
@@ -67,8 +68,10 @@ def _push_facts(env: Environment, p: PayrollPayload) -> None:
 
     de = p.deductions
     env.assert_string(
-        f'(deductions-pct (zus {de.employeeSocialInsurancePct}) '
-        f'(health {de.healthInsurancePct}) (ppk {de.ppkEmployeePct}) '
+        f'(deductions-pct '
+        f'(zus {de.employeeSocialInsurancePct if de.employeeSocialInsurancePct is not None else -1}) '
+        f'(health {de.healthInsurancePct if de.healthInsurancePct is not None else -1}) '
+        f'(ppk {de.ppkEmployeePct if de.ppkEmployeePct is not None else -1}) '
         f'(bail {de.bailDeduction}))'
     )
 
@@ -80,7 +83,7 @@ def _push_facts(env: Environment, p: PayrollPayload) -> None:
 
 
 # ───────────────────────────────────────────────────────────
-#  ZBIERANIE WYNIKÓW Z CLIPS
+#  ZBIERANIE WYNIKÓW
 # ───────────────────────────────────────────────────────────
 
 def _collect_results(env: Environment) -> Dict[str, Dict[str, Decimal]]:
@@ -95,8 +98,12 @@ def _collect_results(env: Environment) -> Dict[str, Dict[str, Decimal]]:
             contrib = {s: _dec(fact[s]) for s in _slot_names(fact)}
         elif name == "summary":
             summ = {"net": _dec(fact["net"])}
-    return {"components": comp, "deductions": ded,
-            "contributions": contrib, "summary": summ}
+    return {
+        "components": comp,
+        "deductions": ded,
+        "contributions": contrib,
+        "summary": summ,
+    }
 
 
 # ───────────────────────────────────────────────────────────
@@ -117,23 +124,19 @@ def run_payroll(payload: PayrollPayload) -> PayrollResult:
                                          "ppk": Decimal(0)}
 
     details: Dict[str, Decimal] = {
-        "baseSalary": comp["base-salary"],
-        "travelPay": comp["travel-pay"],
-
-        # nowo dodane składki
-        "socialInsurance": contrib["social"],
-        "healthInsurance": contrib["health"],
-        "ppkContribution": contrib["ppk"],
-
-        # pozostałe potrącenia
+        "baseSalary":       comp["base-salary"],
+        "travelPay":        comp["travel-pay"],
+        "socialInsurance":  contrib["social"],
+        "healthInsurance":  contrib["health"],
+        "ppkContribution":  contrib["ppk"],
         **(facts["deductions"] or {}),
-        "net": facts["summary"]["net"],
+        "net":              facts["summary"]["net"],
     }
 
     return PayrollResult(
-        gross=comp["gross"],
-        overtimePay=comp["overtime-pay"],
-        bonuses=comp["allow-pay"],
-        details=details,
-        calculatedAt=datetime.now(timezone.utc),
+        gross        = comp["gross"],
+        overtimePay  = comp["overtime-pay"],
+        bonuses      = comp["allow-pay"],
+        details      = details,
+        calculatedAt = datetime.now(timezone.utc),
     )

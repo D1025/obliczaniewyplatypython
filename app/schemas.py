@@ -81,10 +81,12 @@ class OtherDeduction(BaseModel):
 
 
 class Deductions(BaseModel):
-    employeeSocialInsurancePct: condecimal(ge=0) = 0
-    healthInsurancePct: condecimal(ge=0) = 0
-    incomeTaxAdvancePct: condecimal(ge=0) = 0  # rezerwujemy na przyszłość
-    ppkEmployeePct: condecimal(ge=0) = 0
+    # ── opcjonalne – brak wartości → CLIPS wybiera default
+    employeeSocialInsurancePct: Optional[condecimal(ge=0)] = None
+    healthInsurancePct: Optional[condecimal(ge=0)] = None
+    ppkEmployeePct: Optional[condecimal(ge=0)] = None
+
+    incomeTaxAdvancePct: condecimal(ge=0) = 0          # rezerwa na przyszłość
     otherDeductions: List[OtherDeduction] = Field(default_factory=list)
     bailDeduction: Decimal = 0
 
