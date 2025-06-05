@@ -112,9 +112,17 @@
 =>
   (modify ?c (gross (+ ?b ?op ?tp ?ap))))
 
+(defrule tax-adv-student
+  (employee (is-student TRUE))
+  (components)
+  (not (tax-advance))
+=>
+  (assert (tax-advance (amount 0))))
+
 (defrule tax-adv-emp-work
-  (employee (contract-type ?ct&:(or (eq ?ct UMOWA_O_PRACE) (eq ?ct DZIELO))))
+  (employee (contract-type ?ct&:(or (eq ?ct UMOWA_O_PRACE) (eq ?ct DZIELO))) (is-student FALSE))
   (components (gross ?g))
+  (not (tax-advance))
 =>
   (bind ?low (* (min ?g ?*TAX_HI_THRESHOLD*) ?*TAX_ADV_PCT_LO*))
   (bind ?high (if (> ?g ?*TAX_HI_THRESHOLD*)
@@ -122,21 +130,17 @@
                  else 0))
   (assert (tax-advance (amount (+ ?low ?high)))))
 
-(defrule tax-adv-commission-student
-  (employee (contract-type ZLECENIE) (is-student TRUE))
-  (components)
-=>
-  (assert (tax-advance (amount 0))))
-
 (defrule tax-adv-commission
   (employee (contract-type ZLECENIE) (is-student FALSE))
   (components (gross ?g))
+  (not (tax-advance))
 =>
   (assert (tax-advance (amount (* ?g ?*TAX_ADV_PCT_LO*)))))
 
 (defrule tax-adv-b2b
   (employee (contract-type B2B))
   (components)
+  (not (tax-advance))
 =>
   (assert (tax-advance (amount 0))))
 
@@ -145,10 +149,11 @@
   (deductions-pct (zus ?zusP) (health ?heaP)
                   (ppk ?ppkP) (bail ?bail))
   (tax-advance (amount ?taxAdv))
+  (employee (contract-type ?ct))
 =>
-  (bind ?zus     (* ?gross ?zusP))
-  (bind ?health  (* ?gross ?heaP))
-  (bind ?ppk     (* ?gross ?ppkP))
+  (bind ?zus (if (eq ?ct ZLECENIE) then 0 else (* ?gross ?zusP)))
+  (bind ?health (if (eq ?ct ZLECENIE) then 0 else (* ?gross ?heaP)))
+  (bind ?ppk (* ?gross ?ppkP))
   (assert (deductions
             (social  ?zus)
             (health  ?health)
@@ -161,4 +166,4 @@
   (deductions (social ?s) (health ?h) (ppk ?p) (other ?o) (tax-adv ?t))
 =>
   (bind ?net (- ?gross ?s ?h ?p ?o ?t))
-  (assert (summary (net ?net) (calc-date (gensym*)))))
+  (assert (summary (net ?net) (calc-date (gensym*))))
